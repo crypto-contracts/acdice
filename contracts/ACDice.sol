@@ -17,18 +17,22 @@ interface IERC721 {
 contract ACDice {
 
     uint private _flag;
-    address immutable public copper;
-    uint immutable public NPC;
-    uint8 immutable public NPCRole;
-    uint immutable public base; 
+    address public copper;
+    uint public NPC;
+    uint8 public NPCRole;
+    uint public base; 
+    bool private initialized;
 
-    event Rolled(uint8 indexed roleIndex, uint indexed tokenId, uint expect, uint amount, uint random, bool result);
+    event Rolled(uint8 indexed roleIndex, uint indexed tokenId, uint expect, uint amount, uint random, bool result, uint gain);
 
-    constructor (address copper_, uint8 NPCRole_, uint NPC_, uint base_) {
+    function initialize(address copper_, uint8 NPCRole_, uint NPC_, uint base_) public {
+        require(!initialized, "Contract instance has already been initialized");
+        initialized = true;
         copper = copper_;
         NPCRole = NPCRole_;
         NPC = NPC_;
         base = base_;
+        _flag = 0;
     }
 
     function _isContract(address addr) private view returns (bool) {
@@ -56,20 +60,24 @@ contract ACDice {
         }
 
         bool result = expect > random;
+
+        uint gain = 0;
         
         if(result) {
             uint odds = base * 10000 / expect - 10000;
             uint win = odds * amount / 10000;
             uint fee = win * 10 / 100;
 
-            IAssetBox(copper).burn(NPCRole, NPC, win - fee);
-            IAssetBox(copper).mint(roleIndex, tokenId, win - fee);
+            gain = win - fee;
+
+            IAssetBox(copper).burn(NPCRole, NPC, gain);
+            IAssetBox(copper).mint(roleIndex, tokenId, gain);
         } else{
             IAssetBox(copper).burn(roleIndex, tokenId, amount);
             IAssetBox(copper).mint(NPCRole, NPC, amount);
         }
 
-        emit Rolled(roleIndex, tokenId, expect, amount, random, result);
+        emit Rolled(roleIndex, tokenId, expect, amount, random, result, gain);
         return (random, result);
     }
 
